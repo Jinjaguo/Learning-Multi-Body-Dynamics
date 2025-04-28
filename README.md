@@ -2,21 +2,9 @@
 ## Simulator-Augmented Interaction Networks (SAIN) for Proxy Pushing  
 Learn and model the dynamics of an agent pushing a target object, and use it to plan a control strategy to make the target object reach the target position  
 
-
 **SAIN Demo 1**  
-![SAIN Demo1](pushing_visualization.gif)
-
-**SAIN Demo 2**  
 ![SAIN Demo2](pushing_visualization_1.gif)
-
-**SAIN Demo 3**  
-![SAIN Demo3](pushing_visualization_2.gif)
-
-**SAIN Demo 4**  
-![SAIN Demo4](pushing_visualization_3.gif)
-
-**SAIN Demo 5**  
-![SAIN Demo5](pushing_visualization_4.gif)
+>**Please see the gif in repo to get more demo**
 
 > **Task**: Use a Franka Panda arm to push a **middle object**  as a proxy tool to indirectly drive a **target object**  into a green goal region.    
 > **Approach**: Re-implement Ajay *et al.* ICRA 2019’s **Simulator-Augmented Interaction Network (SAIN)** combined with **MPPI** for closed-loop control in PyBullet.  
