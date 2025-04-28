@@ -17,6 +17,8 @@ assets_dir = os.path.join(hw_dir, 'assets')
 
 BOX_SIZE = 0.1
 
+INIT_MID_OBJECT_POSE = np.array([0.35, 0., 0])
+INIT_OBJECT_POSE = np.array([0.49, 0., 0])
 TARGET_POSE_FREE = np.array([0.8, 0., 0.])
 TARGET_POSE_OBSTACLES = np.array([0.8, -0.1, 0.])
 OBSTACLE_CENTRE = np.array([0.6, 0.2, 0.])
@@ -43,12 +45,19 @@ class PandaPushingEnv(gym.Env):
 
         self.pandaUid = None  # panda robot arm
         self.tableUid = None  # Table where to push
-        self.objectUid = None  # Pushing object
+
+        self.objectUid = None  # 被物块推动的物体，
+        self.mid_objectUid = None  # 机械臂推动的物体
+
         self.targetUid = None  # Target object
         self.obstacleUid = None  # Obstacle object
 
-        self.object_file_path = os.path.join(assets_dir, "objects/cube/cube.urdf")
-        self.target_file_path = os.path.join(assets_dir, "objects/cube/cube.urdf")
+        # objects/cube/cube.urdf
+        # objects/disk/disk.urdf
+        self.object_file_path = os.path.join(assets_dir, "objects/disk/disk.urdf")  # 被物块推动的物体
+        self.mid_object_file_path = os.path.join(assets_dir, "objects/disk/disk_big.urdf")  # 机械臂推动的物体
+
+        self.target_file_path = os.path.join(assets_dir, "objects/disk/disk.urdf")
         self.obstacle_file_path = os.path.join(assets_dir, "objects/obstacle/obstacle.urdf")
 
         # self.init_panda_joint_state = [-0.028, 0.853, -0.016, -1.547, 0.017, 2.4, 2.305, 0., 0.]
@@ -92,7 +101,7 @@ class PandaPushingEnv(gym.Env):
         self.block_size = BOX_SIZE
 
         # Motion parameter
-        self.lower_z = 0.02
+        self.lower_z = 0.01
         self.raise_z = 0.3
         # self.push_length = 0.02
         self.push_length = 0.1
@@ -125,6 +134,8 @@ class PandaPushingEnv(gym.Env):
 
         # Load objects
         self.objectUid = p.loadURDF(self.object_file_path, basePosition=self.object_start_pose[:3], baseOrientation=self.object_start_pose[3:], globalScaling=1.)
+        self.mid_objectUid = p.loadURDF(self.mid_object_file_path,basePosition=self.mid_object_start_pose[:3], baseOrientation=self.mid_object_start_pose[3:])
+
 
         # p.changeDynamics(self.objectUid, -1, 2)
         self.targetUid = p.loadURDF(self.target_file_path, basePosition=self.object_target_pose[:3], baseOrientation=self.object_target_pose[3:], globalScaling=1., useFixedBase=True)
@@ -203,7 +214,7 @@ class PandaPushingEnv(gym.Env):
         self._move_ee_trajectory(target_pos, step_size=step_size)
 
     def push(self, push_location, push_angle, push_length=None):
-        current_block_pose = self.get_object_pos_planar()
+        current_block_pose = self.get_mid_object_pos_planar()
         theta = current_block_pose[-1]
         if not self.render_non_push_motions:
             self.is_render_on = False
@@ -264,7 +275,26 @@ class PandaPushingEnv(gym.Env):
                 self.render_frame()
 
     def get_state(self):
-        state = self.get_object_pos_planar().astype(np.float32)
+        """
+        16 state variables: 位置3， 速度3， 质量1， 半径1
+        """
+        mass = 8
+        r_mid_obj = 0.08
+        r_obj = 0.06
+
+        # bigger one
+        p_mid_obj = self.get_mid_object_pos_planar()
+        v_mid_obj = self.get_object_vel_planar(self.mid_objectUid)
+
+        p_obj = self.get_object_pos_planar()
+        v_obj = self.get_object_vel_planar(self.objectUid)
+
+        o_mid_obj = np.concatenate([p_mid_obj, v_mid_obj, [mass, r_mid_obj]])
+        o_obj = np.concatenate([p_obj, v_obj, [mass, r_obj]])
+
+
+        state = np.concatenate([o_mid_obj, o_obj]).astype(np.float32)
+
         return state
 
     def get_object_pose(self):
@@ -274,10 +304,28 @@ class PandaPushingEnv(gym.Env):
         object_pose = np.concatenate([pos, quat])
         return object_pose
 
+    def get_mid_object_pose(self):
+        pos, quat = p.getBasePositionAndOrientation(self.mid_objectUid)
+        pos = np.asarray(pos)
+        quat = np.asarray(quat)
+        mid_object_pose = np.concatenate([pos, quat])
+        return mid_object_pose
+
     def get_object_pos_planar(self):
         object_pos_wf = self.get_object_pose()  # in world frame
         object_pos_planar = self._world_pose_to_planar_pose(object_pos_wf)
         return object_pos_planar
+
+    def get_mid_object_pos_planar(self):
+        object_pos_wf = self.get_mid_object_pose()
+        object_pos_planar = self._world_pose_to_planar_pose(object_pos_wf)
+        return object_pos_planar
+
+    def get_object_vel_planar(self, uid):
+        linear_vel, angular_vel = p.getBaseVelocity(uid)
+        vx, vy = linear_vel[:2]
+        wz = angular_vel[2]  # planar 角速度（绕 z 轴）
+        return np.array([vx, vy, wz], dtype=np.float32)
 
     def get_end_effector_pos(self):
         """
@@ -358,12 +406,15 @@ class PandaPushingEnv(gym.Env):
         # self.object_start_pos = self.cube_pos_distribution.sample()
         if self.include_obstacle:
             # with obstacles
-            object_start_pose_planar = np.array([0.4, 0., -np.pi * 0.2])
+            mid_object_pose_planar = INIT_MID_OBJECT_POSE
+            object_start_pose_planar = INIT_OBJECT_POSE
             object_target_pose_planar = TARGET_POSE_OBSTACLES
         else:
             # free of obstacles
-            object_start_pose_planar = np.array([0.4, 0., np.pi * 0.2])
+            mid_object_pose_planar = INIT_MID_OBJECT_POSE
+            object_start_pose_planar = INIT_OBJECT_POSE
             object_target_pose_planar = TARGET_POSE_FREE
+        self.mid_object_start_pose = self._planar_pose_to_world_pose(mid_object_pose_planar)
         self.object_start_pose = self._planar_pose_to_world_pose(
             object_start_pose_planar)  # self.cube_pos_distribution.sample()
         self.object_target_pose = self._planar_pose_to_world_pose(object_target_pose_planar)

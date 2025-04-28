@@ -509,18 +509,8 @@ class PushingController(object):
          - Prepare the state so it can be send to the mppi controller. Note that MPPI works with torch tensors.
          - Unpack the mppi returned action to the desired format.
         """
-        action = None
-        state_tensor = None
-        # --- Your code here
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        # --- Your code here
         action_tensor = self.mppi.command(state_tensor).squeeze(0).detach().numpy()
-        # ---
         return action_tensor
 
-# =========== AUXILIARY FUNCTIONS AND CLASSES HERE ===========
-# --- Your code here
 
-
-# ---
-# ============================================================

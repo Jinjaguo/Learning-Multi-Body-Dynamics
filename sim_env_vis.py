@@ -10,28 +10,29 @@ from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 from numpngw import write_apng
 from IPython.display import Image
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 
 
+from data_collected import *
 from panda_pushing_env import PandaPushingEnv
 from visualizers import GIFVisualizer
 
 
 
 # Initialize the simulation environment. This will only render push motions, omitting the robot reseting motions.
-env = PandaPushingEnv(render_non_push_motions=False, camera_heigh=500, camera_width=500, render_every_n_steps=5, debug=True, include_obstacle=True)
+env = PandaPushingEnv(render_non_push_motions=False, camera_heigh=500, camera_width=500, debug=True)
 env.reset()
+sampler = ActionSampler(location_bins=5, angle_bins=7, length_bins=3)
 
-# Perform a sequence of 3 random actions:
-for i in tqdm(range(50)):
-    action_i = env.action_space.sample()
+# Perform a sequence of 105 random actions:
+for i in tqdm(range(15)):
+    action_i = sampler.sample()
+    print(f"\n action {i}: {action_i}")
     state, reward, done, info = env.step(action_i)
     if done:
         break
 
-
-print("Simulation done. Viewer active. Close window or press Ctrl+C to quit.")
 while p.isConnected():
     time.sleep(1)
 
