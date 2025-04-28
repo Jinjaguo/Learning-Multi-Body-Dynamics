@@ -1,13 +1,3 @@
-"""
-run_mppi.py ―–– 用 SAIN + MPPI 做小盘到目标点的闭环推盘控制
-
-• state    : 16 维  =  [2×(pose3 vel3 mass radius)]
-• action   : 3  维   =  [pushLoc  pushAng  pushLen]
-
-依赖:
-    pip install tqdm pybullet torch numpy
-"""
-
 import os, time, numpy as np, torch
 import pybullet as p
 from tqdm import trange
