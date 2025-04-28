@@ -126,11 +126,6 @@ for i, a in enumerate(actions):
         p.disconnect()
         exit(0)
 
-# ========== 7. 清理 ==========
-while p.isConnected():
-    time.sleep(1)
-# if viz:
-#     viz.get_gif()
 
 
 
