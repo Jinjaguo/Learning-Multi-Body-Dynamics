@@ -1,13 +1,3 @@
-"""
-run_mppi.py ―–– 用 SAIN + MPPI 做小盘到目标点的闭环推盘控制
-
-• state    : 16 维  =  [2×(pose3 vel3 mass radius)]
-• action   : 3  维   =  [pushLoc  pushAng  pushLen]
-
-依赖:
-    pip install tqdm pybullet torch numpy
-"""
-
 import os, time, numpy as np, torch
 import pybullet as p
 from tqdm import trange
@@ -31,7 +21,6 @@ model.eval()
 
 # ========== 2. 极简物理“近似” ==========
 def physics_stub(s, a):
-    # 直接返回原状态 s，让网络学完整动力学
     return s
 
 @torch.no_grad()
@@ -93,8 +82,13 @@ mppi = MPPI(
 
 # ========== 5. 环境 ==========
 # viz = GIFVisualizer()
+log = np.load("rollout.npz")
+state0  = log["state0"]     # (16,)
+actions = log["actions"]    # (T,3)
+states  = log["states"]     # (T+1,16)
+
 env = PandaPushingEnv(
-        randomize             = True,
+        randomize             = False,
         visualizer            = None,
         debug                 = True,
         render_non_push_motions=False,
@@ -102,30 +96,49 @@ env = PandaPushingEnv(
         camera_width          = 800,
         render_every_n_steps  = 5)
 
-# 一定要拿 16 维完整状态给 MPPI!
+from data_collected import *
 env.reset()
-state_np = env.get_state()   # ← 不要用 env.reset() 的返回值（那是 observation）
+set_env_state(env, state0)
+
 
 # ========== 6. 控制回路 ==========
-for t in trange(15, desc='Control steps'):
+# 逐步执行每个动作
+#for t in trange(15, desc='Control steps'):
+for i, a in enumerate(actions):
+
     # MPPI 求动作
+    state_np = env.get_state()
     state = torch.from_numpy(state_np).float().to(device).unsqueeze(0)  # (1,16)
     action = mppi.command(state).cpu().numpy().squeeze()                # (3,)
 
     # 真环境执行：step 返回 obs, rew, done, info
-    _, _, done, _ = env.step(action)
+    # _, _, done, _ = env.step(action)
+    env.step(a)
+    time.sleep(0.1)
+
     # 重新读取完整状态
     state_np = env.get_state()
 
-    # 成功判定：小盘距目标 < 0.04
-    if np.linalg.norm(state_np[8:10] - TARGET_POSE_FREE[:2]) < 0.04:
-        print(f'✓ goal reached at step {t}')
+    # 成功判定：小盘距目标 < 0.05
+    if np.linalg.norm(state_np[8:10] - TARGET_POSE_FREE[:2]) < 0.05:
+        print(f'✓ goal reached at step {i}')
+
         break
 
 # ========== 7. 清理 ==========
-if p.GUI == 1:
+while p.isConnected():
     time.sleep(1)
-
-p.disconnect()
 # if viz:
 #     viz.get_gif()
+
+
+
+
+
+
+
+
+
+
+
+
