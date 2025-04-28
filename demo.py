@@ -106,9 +106,9 @@ set_env_state(env, state0)
 for i, a in enumerate(actions):
 
     # MPPI 求动作
-    state_np = env.get_state()
-    state = torch.from_numpy(state_np).float().to(device).unsqueeze(0)  # (1,16)
-    action = mppi.command(state).cpu().numpy().squeeze()                # (3,)
+    # state_np = env.get_state()
+    # state = torch.from_numpy(state_np).float().to(device).unsqueeze(0)  # (1,16)
+    # action = mppi.command(state).cpu().numpy().squeeze()                # (3,)
 
     # 真环境执行：step 返回 obs, rew, done, info
     # _, _, done, _ = env.step(action)
@@ -120,9 +120,11 @@ for i, a in enumerate(actions):
 
     # 成功判定：小盘距目标 < 0.05
     if np.linalg.norm(state_np[8:10] - TARGET_POSE_FREE[:2]) < 0.05:
-        print(f'✓ goal reached at step {i}')
-
-        break
+        print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step {i} ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓')
+        print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step {i} ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓')
+        print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step {i} ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓')
+        p.disconnect()
+        exit(0)
 
 # ========== 7. 清理 ==========
 while p.isConnected():
