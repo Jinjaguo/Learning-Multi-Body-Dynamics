@@ -2,6 +2,11 @@
 ## Simulator-Augmented Interaction Networks (SAIN) for Proxy Pushing  
 Learn and model the dynamics of an agent pushing a target object, and use it to plan a control strategy to make the target object reach the target position  
 
+## Motivation
+In some tasks, we are not able to directly manipulate the desired object but we can use other objects as a proxy to interact with the desired object. Here, the proposed extension experimental setup is similar to [Ajay et al., ICRA, 2019], where we push an object to the goal by using an intermediate object.   
+The robot will push this intermediate object into contact with the target object, and plan for a sequence of actions such that the interaction between the two will drive the target object to its goal.  
+
+
 **SAIN Demo 1**  
 ![SAIN Demo2](pushing_visualization_1.gif)
 >**Please see the gif in repo to get more demo**
