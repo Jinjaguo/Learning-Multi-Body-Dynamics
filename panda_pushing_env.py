@@ -3,6 +3,7 @@ import math
 import os
 
 import gym
+import random
 import numpy as np
 import pybullet as p
 import pybullet_data as pd
@@ -18,7 +19,6 @@ assets_dir = os.path.join(hw_dir, 'assets')
 BOX_SIZE = 0.1
 
 INIT_MID_OBJECT_POSE = np.array([0.35, 0., 0])
-INIT_OBJECT_POSE = np.array([0.49, 0., 0])
 TARGET_POSE_FREE = np.array([0.8, 0., 0.])
 TARGET_POSE_OBSTACLES = np.array([0.8, -0.1, 0.])
 OBSTACLE_CENTRE = np.array([0.6, 0.2, 0.])
@@ -27,8 +27,11 @@ OBSTACLE_HALFDIMS = np.array([0.05, 0.25, 0.05])
 
 class PandaPushingEnv(gym.Env):
 
-    def __init__(self, debug=False, visualizer=None, include_obstacle=False, render_non_push_motions=True,
-                 render_every_n_steps=1, camera_heigh=84, camera_width=84):
+    def __init__(self, randomize=True, debug=False, visualizer=None, include_obstacle=False, render_non_push_motions=True,
+                 render_every_n_steps=1, camera_heigh=84, camera_width=84, init_mid_object_pose=INIT_MID_OBJECT_POSE,
+                 target_pose_free=TARGET_POSE_FREE, target_pose_obstacles=TARGET_POSE_OBSTACLES,
+                 obstacle_centre=OBSTACLE_CENTRE, obstacle_halfdims=OBSTACLE_HALFDIMS,):
+        self.randomize = randomize
         self.debug = debug
         self.visualizer = visualizer
         self.include_obstacle = include_obstacle
@@ -38,6 +41,21 @@ class PandaPushingEnv(gym.Env):
         else:
             p.connect(p.DIRECT, options="--opengl2")
         p.setAdditionalSearchPath(pd.getDataPath())
+
+        self.init_mid_object_pose = init_mid_object_pose
+        self.target_pose_free = target_pose_free
+        self.target_pose_obstacles = target_pose_obstacles
+        self.obstacle_centre = obstacle_centre
+        self.obstacle_halfdims = obstacle_halfdims
+
+        # 固定值，用于生成真实参数，做残差
+        self.nominal_params = {
+            'mass_big': 8.0,
+            'r_mid_obj': 0.08,
+            'mass_small': 10.0,
+            'r_obj': 0.06,
+            'friction': 0.12
+        }
 
         self.episode_step_counter = 0
         self.episode_counter = 0
@@ -54,8 +72,9 @@ class PandaPushingEnv(gym.Env):
 
         # objects/cube/cube.urdf
         # objects/disk/disk.urdf
-        self.object_file_path = os.path.join(assets_dir, "objects/disk/disk.urdf")  # 被物块推动的物体
         self.mid_object_file_path = os.path.join(assets_dir, "objects/disk/disk_big.urdf")  # 机械臂推动的物体
+        self.object_file_path = os.path.join(assets_dir, "objects/disk/disk.urdf")  # 被物块推动的物体
+
 
         self.target_file_path = os.path.join(assets_dir, "objects/disk/disk.urdf")
         self.obstacle_file_path = os.path.join(assets_dir, "objects/obstacle/obstacle.urdf")
@@ -101,19 +120,33 @@ class PandaPushingEnv(gym.Env):
         self.block_size = BOX_SIZE
 
         # Motion parameter
-        self.lower_z = 0.01
+        self.lower_z = 0.001 # avoid missing collision
         self.raise_z = 0.3
         # self.push_length = 0.02
         self.push_length = 0.1
 
         self.space_limits = [np.array([0.05, -0.35]), np.array([.8, 0.35])]  # xy limits
         self.observation_space = spaces.Box(low=np.array([self.space_limits[0][0], self.space_limits[0][1], -np.pi], dtype=np.float32),
-                                            high=np.array([self.space_limits[1][0], self.space_limits[1][0],
+                                            high=np.array([self.space_limits[1][0], self.space_limits[1][1],
                                                            np.pi], dtype=np.float32)) 
         self.action_space = spaces.Box(low=np.array([-1, -np.pi * 0.5, 0], dtype=np.float32),
                                        high=np.array([1, np.pi * 0.5, 1], dtype=np.float32))  #
 
     def reset(self):
+        if self.randomize:
+        # —— 1. 随机生成真实参数 ——
+            self.mass_big = random.uniform(7.0, 9.0)
+            self.r_mid_obj = random.uniform(0.075, 0.085)
+            self.mass_small = random.uniform(7.0, 9.0)
+            self.r_obj = random.uniform(0.055, 0.065)
+            friction = random.uniform(0.08, 0.20)
+        else:
+            self.mass_big = self.nominal_params['mass_big']
+            self.r_mid_obj = self.nominal_params['r_mid_obj']
+            self.mass_small = self.nominal_params['mass_small']
+            self.r_obj = self.nominal_params['r_obj']
+            friction = self.nominal_params['friction']
+
         self._set_object_positions()
         self.episode_counter += 1
         self.episode_step_counter = 0
@@ -133,8 +166,15 @@ class PandaPushingEnv(gym.Env):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
 
         # Load objects
-        self.objectUid = p.loadURDF(self.object_file_path, basePosition=self.object_start_pose[:3], baseOrientation=self.object_start_pose[3:], globalScaling=1.)
-        self.mid_objectUid = p.loadURDF(self.mid_object_file_path,basePosition=self.mid_object_start_pose[:3], baseOrientation=self.mid_object_start_pose[3:])
+        # —— 2. 载入大 disk（被机械臂推） ——
+        scale_big   = self.r_mid_obj / 0.08  # 0.08 是 URDF 原始半径
+        self.mid_objectUid = p.loadURDF(self.mid_object_file_path, basePosition=self.mid_object_start_pose[:3], baseOrientation=self.mid_object_start_pose[3:], globalScaling=scale_big)
+        p.changeDynamics(self.mid_objectUid, -1, mass=self.mass_big,   lateralFriction=friction)
+
+        # —— 3. 载入小 disk（目标物体） ——
+        scale_small = self.r_obj      / 0.06  # 0.06 是原始半径
+        self.objectUid = p.loadURDF(self.object_file_path, basePosition=self.object_start_pose[:3], baseOrientation=self.object_start_pose[3:], globalScaling=scale_small)
+        p.changeDynamics(self.objectUid,    -1, mass=self.mass_small, lateralFriction=friction)
 
 
         # p.changeDynamics(self.objectUid, -1, 2)
@@ -149,8 +189,8 @@ class PandaPushingEnv(gym.Env):
         p.changeVisualShape(self.targetUid, -1, rgbaColor=[0.05, 0.95, 0.05, .1])  # Change color for target
 
         # get inital state after reset
-        state = self.get_state()
-        return state
+        obs = self.get_observation() # position of object
+        return obs
 
     def step(self, action):
         # check that the action is valid
@@ -166,19 +206,20 @@ class PandaPushingEnv(gym.Env):
         push_length = push_length_fraction * self.push_length
         # Perform the action
         self.push(push_location, push_angle, push_length=push_length)
-        state = self.get_state()
         reward = 0.
-        done = self._is_done(state)
         info = {}
-        return state, reward, done, info
+        next_full_state = self.get_state()
+        obs = self.get_observation()
+        done = self._is_done(obs)
+        return next_full_state, reward, done, info
 
-    def _is_done(self, state):
-        done = not self.observation_space.contains(state)
+    def _is_done(self, obs):
+        done = not self.observation_space.contains(obs)
         at_goal = False
         if self.include_obstacle:
-            at_goal = np.sum((state - TARGET_POSE_OBSTACLES)**2) < 0.01
+            at_goal = np.sum((obs - self.target_pose_obstacles)**2) < 0.005
         else:
-            at_goal = np.sum((state - TARGET_POSE_FREE)**2) < 0.01
+            at_goal = np.sum((obs - self.target_pose_free)**2) < 0.005
         done = done or at_goal
         return done
 
@@ -278,10 +319,6 @@ class PandaPushingEnv(gym.Env):
         """
         16 state variables: 位置3， 速度3， 质量1， 半径1
         """
-        mass = 8
-        r_mid_obj = 0.08
-        r_obj = 0.06
-
         # bigger one
         p_mid_obj = self.get_mid_object_pos_planar()
         v_mid_obj = self.get_object_vel_planar(self.mid_objectUid)
@@ -289,13 +326,16 @@ class PandaPushingEnv(gym.Env):
         p_obj = self.get_object_pos_planar()
         v_obj = self.get_object_vel_planar(self.objectUid)
 
-        o_mid_obj = np.concatenate([p_mid_obj, v_mid_obj, [mass, r_mid_obj]])
-        o_obj = np.concatenate([p_obj, v_obj, [mass, r_obj]])
+        o_mid_obj = np.concatenate([p_mid_obj, v_mid_obj, [self.mass_big, self.r_mid_obj]])
+        o_obj = np.concatenate([p_obj, v_obj, [self.mass_small, self.r_obj]])
 
+        full_state = np.concatenate([o_mid_obj, o_obj]).astype(np.float32)
 
-        state = np.concatenate([o_mid_obj, o_obj]).astype(np.float32)
+        return full_state
 
-        return state
+    def get_observation(self):
+        # 只返回小盘的 planar pose [x, y, θ]
+        return self.get_object_pos_planar().astype(np.float32)
 
     def get_object_pose(self):
         pos, quat = p.getBasePositionAndOrientation(self.objectUid)
@@ -402,18 +442,25 @@ class PandaPushingEnv(gym.Env):
         p.removeAllUserDebugItems()
 
     def _set_object_positions(self):
+        """
+            目标：让小 disk 紧贴在大 disk 右侧：
+                (x_small, y_small) = (x_big + r_big + r_small + gap, y_big)
+            其中 gap≈1mm，避免初始就穿透。
+        """
         # set object initial position and final position
         # self.object_start_pos = self.cube_pos_distribution.sample()
+        gap = 0.001
         if self.include_obstacle:
             # with obstacles
-            mid_object_pose_planar = INIT_MID_OBJECT_POSE
-            object_start_pose_planar = INIT_OBJECT_POSE
-            object_target_pose_planar = TARGET_POSE_OBSTACLES
+            mid_object_pose_planar = np.array(self.init_mid_object_pose, dtype=np.float32)
+            object_start_pose_planar = self.init_mid_object_pose + np.array([self.r_mid_obj + self.r_obj + gap, 0.0, 0.0])
+            object_target_pose_planar = self.target_pose_obstacles
         else:
             # free of obstacles
-            mid_object_pose_planar = INIT_MID_OBJECT_POSE
-            object_start_pose_planar = INIT_OBJECT_POSE
-            object_target_pose_planar = TARGET_POSE_FREE
+            mid_object_pose_planar = np.array(self.init_mid_object_pose, dtype=np.float32)
+            object_start_pose_planar = self.init_mid_object_pose + np.array([self.r_mid_obj + self.r_obj + gap, 0.0, 0.0])
+            object_target_pose_planar = self.target_pose_free
+
         self.mid_object_start_pose = self._planar_pose_to_world_pose(mid_object_pose_planar)
         self.object_start_pose = self._planar_pose_to_world_pose(
             object_start_pose_planar)  # self.cube_pos_distribution.sample()
