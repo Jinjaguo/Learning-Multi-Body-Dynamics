@@ -3,16 +3,20 @@
 Learn and model the dynamics of an agent pushing a target object, and use it to plan a control strategy to make the target object reach the target position  
 
 
+**SAIN Demo 1**  
 ![SAIN Demo1](pushing_visualization.gif)
 
+**SAIN Demo 2**  
 ![SAIN Demo2](pushing_visualization_1.gif)
 
+**SAIN Demo 3**  
 ![SAIN Demo3](pushing_visualization_2.gif)
 
+**SAIN Demo 4**  
 ![SAIN Demo4](pushing_visualization_3.gif)
 
+**SAIN Demo 5**  
 ![SAIN Demo5](pushing_visualization_4.gif)
-
 
 > **Task**: Use a Franka Panda arm to push a **middle object**  as a proxy tool to indirectly drive a **target object**  into a green goal region.    
 > **Approach**: Re-implement Ajay *et al.* ICRA 2019’s **Simulator-Augmented Interaction Network (SAIN)** combined with **MPPI** for closed-loop control in PyBullet.  
@@ -40,9 +44,9 @@ conda activate sain_torch
 pip install -r requirements.txt  
 
 ## Future Work
-Graph-based ODE for continuous-time prediction  
-Extend to 3D proxy pushing with obstacles  
-Deploy on real Franka Panda with vision feedback  
+> Graph-based ODE for continuous-time prediction  
+> Extend to 3D proxy pushing with obstacles  
+> Deploy on real Franka Panda with vision feedback  
 
 ## References
 Ajay A., Bauza M., Wu J., Fazeli N., Tenenbaum J.B., Rodriguez A., Kaelbling L.P.“Combining Physical Simulators and Object-Based Networks for Control.” ICRA 2019 arXiv:1904.07301  
