@@ -2,11 +2,10 @@ import os, time, numpy as np, torch
 import pybullet as p
 from tqdm import trange
 
-# ---- 你自己写的库 ----
 from panda_pushing_env import PandaPushingEnv, TARGET_POSE_FREE
-from sain_model           import SAIN, build_feats, apply_delta
-from visualizers          import GIFVisualizer
-from mppi                 import MPPI                 # 同仓库里的实现
+from sain_model import SAIN, build_feats, apply_delta
+from visualizers import GIFVisualizer
+from mppi import MPPI
 
 
 # ========== 0. 设备 ==========
