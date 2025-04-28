@@ -12,77 +12,8 @@ OBSTACLE_CENTRE_TENSOR = torch.as_tensor(OBSTACLE_CENTRE, dtype=torch.float32)[:
 OBSTACLE_HALFDIMS_TENSOR = torch.as_tensor(OBSTACLE_HALFDIMS, dtype=torch.float32)[:2]
 
 
-def collect_data_random(env, num_trajectories=1000, trajectory_length=10):
-    """
-    Collect data from the provided environment using uniformly random exploration.
-    :param env: Gym Environment instance.
-    :param num_trajectories: <int> number of data to be collected.
-    :param trajectory_length: <int> number of state transitions to be collected
-    :return: collected data: List of dictionaries containing the state-action trajectories.
-    Each trajectory dictionary should have the following structure:
-        {'states': states,
-        'actions': actions}
-    where
-        * states is a numpy array of shape (trajectory_length+1, state_size) containing the states [x_0, ...., x_T]
-        * actions is a numpy array of shape (trajectory_length, actions_size) containing the actions [u_0, ...., u_{T-1}]
-    Each trajectory is:
-        x_0 -> u_0 -> x_1 -> u_1 -> .... -> x_{T-1} -> u_{T_1} -> x_{T}
-        where x_0 is the state after resetting the environment with env.reset()
-    All data elements must be encoded as np.float32.
-    """
-    collected_data = None
-    # --- Your code here
-    # collect data from the environment using random exploration
-    collected_trajectories = []
-
-    for traj_idx in range(num_trajectories):
-        # initialize state and action arrays
-        states = np.zeros((trajectory_length + 1, 3), dtype=np.float32)
-        actions = np.zeros((trajectory_length, 3), dtype=np.float32)
-
-        initial_state = env.reset()
-        states[0, :] = initial_state
-
-        for step_idx in range(trajectory_length):
-            action = env.action_space.sample()
-            actions[step_idx, :] = action
-
-            next_state, _, _, _ = env.step(action)
-            states[step_idx + 1, :] = next_state
-
-        collected_trajectories.append({'states': states, 'actions': actions})
-
-    collected_data = collected_trajectories
-
-    return collected_data
-
-
 def process_data_single_step(collected_data, batch_size=500):
-    """
-    Process the collected data and returns a DataLoader for train and one for validation.
-    The data provided is a list of trajectories (like collect_data_random output).
-    Each DataLoader must load dictionary as {'state': x_t,
-     'action': u_t,
-     'next_state': x_{t+1},
-    }
-    where:
-     x_t: torch.float32 tensor of shape (batch_size, state_size)
-     u_t: torch.float32 tensor of shape (batch_size, action_size)
-     x_{t+1}: torch.float32 tensor of shape (batch_size, state_size)
 
-    The data should be split in a 80-20 training-validation split.
-    :param collected_data:
-    :param batch_size: <int> size of the loaded batch.
-    :return:
-
-    Hints:
-     - Pytorch provides data tools for you such as Dataset and DataLoader and random_split
-     - You should implement SingleStepDynamicsDataset below.
-        This class extends pytorch Dataset class to have a custom data format.
-    """
-    train_loader = None
-    val_loader = None
-    # --- Your code here
     dynamics_dataset = SingleStepDynamicsDataset(collected_data)
 
     train_size = int(0.8 * len(dynamics_dataset))
@@ -91,7 +22,7 @@ def process_data_single_step(collected_data, batch_size=500):
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-    # ---
+
     return train_loader, val_loader
 
 
@@ -138,17 +69,6 @@ def process_data_multiple_step(collected_data, batch_size=500):
 
 
 class SingleStepDynamicsDataset(Dataset):
-    """
-    Each data sample is a dictionary containing (x_t, u_t, x_{t+1}) in the form:
-    {'state': x_t,
-     'action': u_t,
-     'next_state': x_{t+1},
-    }
-    where:
-     x_t: torch.float32 tensor of shape (state_size,)
-     u_t: torch.float32 tensor of shape (action_size,)
-     x_{t+1}: torch.float32 tensor of shape (state_size,)
-    """
 
     def __init__(self, collected_data):
         self.data = collected_data
@@ -460,8 +380,6 @@ def obstacle_avoidance_pushing_cost_function(state, action):
 class PushingController(object):
     """
     MPPI-based controller
-    Since you implemented MPPI on HW2, here we will give you the MPPI for you.
-    You will just need to implement the dynamics and tune the hyperparameters and cost functions.
     """
 
     def __init__(self, env, model, cost_function, num_samples=100, horizon=10):
@@ -494,10 +412,7 @@ class PushingController(object):
         :param action: torch tensor of shape (B, action_size)
         :return: next_state: torch tensor of shape (B, state_size) containing the predicted states from the learned model.
         """
-        next_state = None
-        # --- Your code here
         next_state = self.model(state, action)
-        # ---
         return next_state
 
     def control(self, state):

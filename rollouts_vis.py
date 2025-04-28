@@ -9,11 +9,16 @@ data = np.load("dataset/sain_push_dataset.npz")
 states         = data["state"]           # (N,16)
 actions        = data["action"]          # (N, 3)
 next_states    = data["next_state"]      # (N,16)
+N = len(actions)
 
-# 2. 选一条“轨迹”——这里简单取前 T 步
-T = 20
-traj_states  = states[:T+1]   # 0...T
-traj_actions = actions[:T]    # 0...T-1
+# 2. 设定回放长度
+T = 19 # 每次回放 T 步
+
+start = np.random.randint(0, N - T + 1)
+end = start + T
+
+traj_states  = states[start : end+1]   # state0 ... stateT （共 T+1 条）
+traj_actions = actions[start : end]    # action0 ... action(T-1)（共 T 条）
 
 # 3. 启动 env（GUI 模式）并重置
 env = PandaPushingEnv(
@@ -30,7 +35,6 @@ set_env_state(env, traj_states[0])
 for t in range(T):
     a = traj_actions[t]
     env.step(a)
-    time.sleep(0.5)
 
 # 6. 挂起，直到你手动关闭 GUI
 while p.isConnected():

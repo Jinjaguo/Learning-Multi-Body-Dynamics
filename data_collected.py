@@ -3,7 +3,10 @@ import itertools
 import random
 import pybullet as p
 import os
-from tqdm import trange
+from multiprocessing import Pool,freeze_support
+from tqdm import tqdm
+
+
 
 from panda_pushing_env import PandaPushingEnv
 
@@ -77,64 +80,99 @@ def get_physics_prediction(shadow_env, state, action):
     return next_state
 
 
+def collect_one_episode(args):
+    """
+    Collect transitions for a single episode.
+    Returns four lists: states, actions, physics_next, next_states.
+    """
+    ep_id, steps_per_ep, moving_thresh, seed = args
+    # seed RNG for reproducibility
+    random.seed(seed)
+    np.random.seed(seed)
 
-# ====== 超参数 ======
-N_EPISODES       = 10        # 采集多少条 episode
-STEPS_PER_EP     = 15         # 每个 episode 随机推几步
-MOVE_THRESH      = 0.002      # 2mm: 小 disk 位移阈值
-OUT_DIR          = "dataset"
-OUT_FILE         = "sain_push_dataset.npz"
+    sampler     = ActionSampler()
+    env         = PandaPushingEnv(randomize=True,  debug=False)
+    shadow_env  = PandaPushingEnv(randomize=False, debug=False)
 
-# ====== 动作采样器 ======
-sampler = ActionSampler(location_bins=5, angle_bins=7, length_bins=3)
+    local_states, local_actions, local_physics_next, local_next_states = [], [], [], []
 
-# ====== 创建环境 ======
-env         = PandaPushingEnv(randomize=True,  debug=False)
-shadow_env  = PandaPushingEnv(randomize=False, debug=False)
-
-# ====== 数据缓冲区 ======
-states, actions, physics_next, next_states = [], [], [], []
-
-for ep in trange(N_EPISODES, desc="Episodes"):
-    obs = env.reset()
+    _ = env.reset()
     full_state = env.get_state()
 
-    for t in range(STEPS_PER_EP):
+    for t in range(steps_per_ep):
         action = sampler.sample()
 
-        # --------- physics 预测 ----------
+        # physics prediction from shadow env
         fp_next = get_physics_prediction(shadow_env, full_state, action)
 
-        # --------- 真环境推进 ----------
-        _ , _, _, _ = env.step(action)
+        # real environment step
+        _ = env.step(action)
         full_state_next = env.get_state()
 
-        # --------- 剔除无效样本 ----------
-        small_pose_cur  = full_state[8:11]     # [x,y,θ]   小 disk
-        small_pose_next = full_state_next[8:11]
-
-        moved_dist = np.linalg.norm(small_pose_next[:2] - small_pose_cur[:2])
-        if moved_dist < MOVE_THRESH:
-            # 小盘几乎没动 → 丢弃
+        # filter out moves where small disk barely moved
+        small_cur  = full_state[8:10]
+        small_next = full_state_next[8:10]
+        if np.linalg.norm(small_next - small_cur) < moving_thresh:
             full_state = full_state_next
             continue
 
-        # --------- 缓存 ---------
-        states.append(full_state.astype(np.float32))
-        actions.append(action.astype(np.float32))
-        physics_next.append(fp_next.astype(np.float32))
-        next_states.append(full_state_next.astype(np.float32))
+        # cache
+        local_states.append(full_state.astype(np.float32))
+        local_actions.append(action.astype(np.float32))
+        local_physics_next.append(fp_next.astype(np.float32))
+        local_next_states.append(full_state_next.astype(np.float32))
 
-        # 准备下一步
         full_state = full_state_next
 
-# ====== 保存 ======
-os.makedirs(OUT_DIR, exist_ok=True)
-np.savez_compressed(
-    os.path.join(OUT_DIR, OUT_FILE),
-    state=np.stack(states),
-    action=np.stack(actions),
-    physics_next=np.stack(physics_next),
-    next_state=np.stack(next_states),
-)
-print(f"[DONE] finished. Num of samples：{len(states)} valid data → {OUT_DIR}/{OUT_FILE}")
+    return local_states, local_actions, local_physics_next, local_next_states
+
+
+def main(n_episodes=5000, steps_per_ep=10, moving_thresh=0.002, n_workers=None):
+    if n_workers is None:
+        n_workers = os.cpu_count() or 4
+    os.makedirs("dataset", exist_ok=True)
+
+    args = [
+        (ep, steps_per_ep, moving_thresh, ep)
+        for ep in range(n_episodes)
+    ]
+
+    save_every = 1000  # 满 1000 样本立即保存
+    file_idx = 0
+
+    all_states, all_actions, all_phys, all_next = [], [], [], []
+    with Pool(n_workers) as pool:
+        for states, actions, phys, nexts in tqdm(
+                pool.imap_unordered(collect_one_episode, args),
+                total=n_episodes,
+                desc="Collecting episodes"):
+            all_states      .extend(states)
+            all_actions     .extend(actions)
+            all_phys        .extend(phys)
+            all_next        .extend(nexts)
+            print(len(all_states))
+
+            while len(all_states) >= save_every:
+                chunk = slice(0, save_every)
+                np.savez_compressed(f"dataset/part_{file_idx}.npz",
+                                    state=np.stack(all_states[chunk]),
+                                    action=np.stack(all_actions[chunk]),
+                                    physics_next=np.stack(all_phys[chunk]),
+                                    next_state=np.stack(all_next[chunk]))
+                print(f"[DONE] Collected {len(all_states)} samples")
+                # 从列表里弹出已保存的数据，释放内存
+                del all_states[:save_every]
+                del all_actions[:save_every]
+                del all_phys[:save_every]
+                del all_next[:save_every]
+                file_idx += 1
+
+
+if __name__ == "__main__":
+    freeze_support()  # Windows multiprocessing 必需
+    main(
+        n_episodes   = 5000,
+        steps_per_ep = 10,
+        moving_thresh= 0.002,
+        n_workers    = 8
+    )
