@@ -12,11 +12,10 @@ import os, time, numpy as np, torch
 import pybullet as p
 from tqdm import trange
 
-# ---- 你自己写的库 ----
 from panda_pushing_env import PandaPushingEnv, TARGET_POSE_FREE
 from sain_model           import SAIN, build_feats, apply_delta
 from visualizers          import GIFVisualizer
-from mppi                 import MPPI                 # 同仓库里的实现
+from mppi                 import MPPI              
 
 
 # ========== 0. 设备 ==========
@@ -29,9 +28,8 @@ ckpt = torch.load('checkpoints/sain_epoch7000.pth', map_location=device)
 model.load_state_dict(ckpt['model_state'])
 model.eval()
 
-# ========== 2. 极简物理“近似” ==========
+# ========== 2. 物理近似 ==========
 def physics_stub(s, a):
-    # 直接返回原状态 s，让网络学完整动力学
     return s
 
 @torch.no_grad()
@@ -101,9 +99,8 @@ env = PandaPushingEnv(
         camera_width          = 800,
         render_every_n_steps  = 5)
 
-# 一定要拿 16 维完整状态给 MPPI!
 env.reset()
-state_np = env.get_state()   # ← 不要用 env.reset() 的返回值（那是 observation）
+state_np = env.get_state()   
 
 # ========== 6. 控制回路 ==========
 for t in trange(15, desc='Control steps'):
