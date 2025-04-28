@@ -80,9 +80,14 @@ class PandaPushingEnv(gym.Env):
         # self.camera_width = 84
         self.camera_height = camera_heigh
         self.camera_width = camera_width
+        self.camera_pos = [0.55, -0.35, 0.2]
+        self.camera_orn = [0, -40, 0]
+        self.camera_distance = 1.5
 
-        p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40,
-                                     cameraTargetPosition=[0.55, -0.35, 0.2])
+        p.resetDebugVisualizerCamera(cameraDistance=self.camera_distance,
+                                     cameraYaw=self.camera_orn[0],
+                                     cameraPitch=self.camera_orn[1],
+                                     cameraTargetPosition=self.camera_pos)
 
         self.block_size = BOX_SIZE
 
