@@ -1,11 +1,6 @@
 # Learning-Multi-Body-Dynamics
 ## Simulator-Augmented Interaction Networks (SAIN) for Proxy Pushing  
-Learn and model the dynamics of an agent pushing a target object, and use it to plan a control strategy to make the target object reach the target position  
-
-## How to use？
-> chmod +x install.sh  
-> ./install.sh  
-> python demo.py  
+Learn and model the dynamics of an agent pushing a target object, and use it to plan a control strategy to make the target object reach the target position   
 
 ## Motivation
 In some tasks, we are not able to directly manipulate the desired object but we can use other objects as a proxy to interact with the desired object. Here, the proposed extension experimental setup is similar to [Ajay et al., ICRA, 2019], where we push an object to the goal by using an intermediate object.   
@@ -45,9 +40,13 @@ The robot will push this intermediate object into contact with the target object
 └── README.md # ← You are here  
 
 ## Environment Setup
+```
 conda create -n sain_torch python=3.10  
-conda activate sain_torch  
-pip install -r requirements.txt  
+conda activate sain_torch   
+chmod +x install.sh  
+./install.sh  
+python demo.py
+```
 
 ## Future Work
 > Graph-based ODE for continuous-time prediction  
