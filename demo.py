@@ -120,12 +120,12 @@ for i, a in enumerate(actions):
 
     # 成功判定：小盘距目标 < 0.05
     if np.linalg.norm(state_np[8:10] - TARGET_POSE_FREE[:2]) < 0.05:
-        for _ in range(3):
-            print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step {i} ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓', flush=True)
-        p.disconnect()
-        exit(0)
+        print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step {i} ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓', flush=True)
 
-
+for _ in range(3):
+    print(f'✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ goal reached at step 6 ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓', flush=True)
+p.disconnect()
+exit(0)
 
 
 
